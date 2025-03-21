@@ -1,0 +1,11 @@
+logging - this rightnow is not a thing
+make sure that you are actually passing the assignemtn.
+
+put authentication in docker?
+
+task 2.2 is not implemented at all.
+
+results table implementation needed.
+
+#to test
+SELECT * FROM results;
