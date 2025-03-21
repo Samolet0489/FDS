@@ -30,6 +30,10 @@ def login():
     username = data.get("username")
     password = data.get("password")
     
+    if len(data) != 2:
+        return jsonify({"error": "Invalid input"}), 400
+
+
     if username in USER_DATA and USER_DATA[username]["password"] == password:
         role = USER_DATA[username]["role"]
         token_str = generate_token(username, role)
