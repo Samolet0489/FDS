@@ -58,6 +58,7 @@ def log_request_info():
     """
     app.logger.info("------ REQUEST START ------")
     app.logger.info(f"Source: {request.remote_addr}")
+    app.logger.info(f"Destination: {request.host}")
     app.logger.info(f"method/Patch: {request.method} {request.path}")
     app.logger.info(f"Headers: {dict(request.headers)}")
     try:

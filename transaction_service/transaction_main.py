@@ -7,6 +7,43 @@ import requests
 from flask import Flask, request, jsonify
 from functools import wraps
 app = Flask(__name__)
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+app.logger.setLevel(logging.INFO)
+
+
+@app.before_request
+def log_request_info():
+    """
+    Logs inbound request information: source IP, destination, method/path, headers, and body.
+    """
+    app.logger.info("------ REQUEST START ------")
+    app.logger.info(f"Source: {request.remote_addr}")
+    app.logger.info(f"Destination: {request.host}")  
+    app.logger.info(f"Method/Path: {request.method} {request.path}")
+    app.logger.info(f"Headers: {dict(request.headers)}")
+    try:
+        if request.is_json:
+            app.logger.info(f"Body: {request.get_json()}")
+        else:
+            app.logger.info("Body: [Not JSON or empty]")
+    except Exception as e:
+        app.logger.warning(f"Could not read request body: {e}")
+
+@app.after_request
+def log_response_info(response):
+    """
+    Logs outbound response status and headers.
+    """
+    app.logger.info(f"Status: {response.status_code}")
+    app.logger.info(f"Response Headers: {dict(response.headers)}")
+    app.logger.info(f"Destination (self): {request.host}")  # Optional for symmetry
+    app.logger.info("------ REQUEST END ------\n")
+    return response
 
 
 # tid = transaction_id
@@ -102,35 +139,6 @@ init_db()
 # def verify_token(token):
 #     # Temporary bypass for testing:
 #     return True, "administrator"
-
-
-
-@app.before_request
-def log_request_info():
-    """
-    Logs inbound request information: source IP, method/path, headers, and body.
-    """
-    app.logger.info("------ REQUEST START ------")
-    app.logger.info(f"Source: {request.remote_addr}")
-    app.logger.info(f"Method/Path: {request.method} {request.path}")
-    app.logger.info(f"Headers: {dict(request.headers)}")
-    try:
-        if request.is_json:
-            app.logger.info(f"Body: {request.get_json()}")
-        else:
-            app.logger.info("Body: [Not JSON or empty]")
-    except Exception as e:
-        app.logger.warning(f"Could not read request body: {e}")
-
-@app.after_request
-def log_response_info(response):
-    """
-    Logs outbound response status and headers.
-    """
-    app.logger.info(f"Status: {response.status_code}")
-    app.logger.info(f"Response Headers: {dict(response.headers)}")
-    app.logger.info("------ REQUEST END ------\n")
-    return response
 
 
 def verify_token(token):
