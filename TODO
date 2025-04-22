@@ -1,10 +1,13 @@
-logging - destination missing?
-make sure that you are actually passing the assignemtn. (almost)
 
-#to test
+
+
+
+
+
+#to test ( we are using postman now)
 SELECT * FROM results;
 
 
 LOOK FOR " # comment me "and comment then
 
-WRITE A README FILE!!!
+ requirements from root needed? (remove them plz)
