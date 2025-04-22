@@ -5,10 +5,13 @@ import time
 import psycopg2
 import requests
 from flask import Flask, request, jsonify
-
+from functools import wraps
 app = Flask(__name__)
 
 
+# tid = transaction_id
+# ts = timestamp
+# amt = amount
 
 
 
@@ -102,6 +105,34 @@ init_db()
 
 
 
+@app.before_request
+def log_request_info():
+    """
+    Logs inbound request information: source IP, method/path, headers, and body.
+    """
+    app.logger.info("------ REQUEST START ------")
+    app.logger.info(f"Source: {request.remote_addr}")
+    app.logger.info(f"Method/Path: {request.method} {request.path}")
+    app.logger.info(f"Headers: {dict(request.headers)}")
+    try:
+        if request.is_json:
+            app.logger.info(f"Body: {request.get_json()}")
+        else:
+            app.logger.info("Body: [Not JSON or empty]")
+    except Exception as e:
+        app.logger.warning(f"Could not read request body: {e}")
+
+@app.after_request
+def log_response_info(response):
+    """
+    Logs outbound response status and headers.
+    """
+    app.logger.info(f"Status: {response.status_code}")
+    app.logger.info(f"Response Headers: {dict(response.headers)}")
+    app.logger.info("------ REQUEST END ------\n")
+    return response
+
+
 def verify_token(token):
     """
     Call the Auth service to verify the token and get the role.
@@ -126,21 +157,21 @@ def verify_token(token):
 
 def role_check(allowed_roles):
     """
-    A decorator that ensures the user has one of the allowed roles.
-    It verifies the token by calling the Auth service and checks role membership.
+    Decorator that ensures the user has one of the allowed roles.
+    Verifies the token by calling the Auth service and checks role membership.
+    Returns 403 if unauthorized.
     """
     def decorator(fn):
+        @wraps(fn)
         def wrapper(*args, **kwargs):
             token = request.headers.get("Authorization", "")
             valid, role = verify_token(token)
-            
             if not valid or role not in allowed_roles:
                 return jsonify({"error": "Forbidden"}), 403
-            
             return fn(*args, **kwargs)
-        wrapper.__name__ = fn.__name__
         return wrapper
     return decorator
+
 
 # -------------------------------------------------------------------------------------
 #  ENDPOINTS
@@ -216,7 +247,9 @@ def update_transaction(tid):
 def get_results(tid):
     """
     Fetch the prediction results for a transaction.
+    Only accessible to administrator/agent roles.
     """
+
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
@@ -241,6 +274,73 @@ def get_results(tid):
     
     app.logger.info(f"Fetched {len(results_data)} results for transaction ID={tid}")
     return jsonify({"results": results_data}), 200
+
+
+@app.route("/transactions", methods=["GET"])
+@role_check(["administrator", "agent", "secretary"])
+def list_transactions():
+    """
+    Return all transactions (basic data).
+    Secretary (read-only), Agent, and Admin can call this.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, customer, timestamp, status, vendor_id, amount FROM transactions")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # format rows
+    results = []
+    for row in rows:
+        tid, customer, ts, status, vend, amt = row
+        results.append({
+            "id": tid,
+            "customer": customer,
+            "timestamp": ts,
+            "status": status,
+            "vendor_id": vend,
+            "amount": amt
+        })
+    app.logger.info(f"Fetched{len(results)} transactions (read-only)")
+    return jsonify({"transactions": results}), 200
+
+
+@app.route("/transactions/<int:tid>", methods=["GET"])
+@role_check(["administrator", "agent", "secretary"])
+def get_transaction(tid):
+    """
+    Return one transaction's details by ID.
+    Secretary, Agent, or Admin can call this (read-only).
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, customer, timestamp, status, vendor_id, amount
+        FROM transactions
+        WHERE id = %s
+    """, (tid,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not row:
+        return jsonify({"error": "Transaction not found"}), 404
+    
+    tid, customer, ts, status, vend, amt = row
+    transaction_data = {
+        "id": tid,
+        "customer": customer,
+        "timestamp": ts,
+        "status": status,
+        "vendor_id": vend,
+        "amount": amt
+    }
+    app.logger.info(f"Fetched transactions (read-only) ID={tid}")
+    return jsonify({"transaction": transaction_data}), 200
+
+
+
 
 # -------------------------------------------------------------------------------------
 #  RUN THE SERVICE

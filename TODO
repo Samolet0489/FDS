@@ -1,11 +1,10 @@
-logging - this rightnow is not a thing
-make sure that you are actually passing the assignemtn.
-
-put authentication in docker?
-
-task 2.2 is not implemented at all.
-
-results table implementation needed.
+logging - destination missing?
+make sure that you are actually passing the assignemtn. (almost)
 
 #to test
 SELECT * FROM results;
+
+
+LOOK FOR " # comment me "and comment then
+
+WRITE A README FILE!!!

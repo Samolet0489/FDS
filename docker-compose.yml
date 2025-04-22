@@ -13,6 +13,13 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
 
+  auth_service:
+    build: ./auth_service  # directory with Dockerfile + auth_main.py
+    container_name: ds-auth-service
+    ports:
+      - "5001:5001"
+
+
   transaction_service:
     build: ./transaction_service 
     container_name: ds-transaction-service
@@ -20,6 +27,7 @@ services:
       - "5002:5002"
     depends_on:
       - db
+      - auth_service
     environment:
       DB_HOST: db
       DB_PORT: 5432
