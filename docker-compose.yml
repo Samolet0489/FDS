@@ -5,23 +5,22 @@ services:
     image: postgres:15
     container_name: ds-postgres
     environment:
-      - POSTGRES_USER=myuser
-      - POSTGRES_PASSWORD=mypassword
-      - POSTGRES_DB=transactions_db
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: transactions_db
     ports:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
 
   auth_service:
-    build: ./auth_service  # directory with Dockerfile + auth_main.py
+    build: ./auth_service
     container_name: ds-auth-service
     ports:
       - "5001:5001"
 
-
   transaction_service:
-    build: ./transaction_service 
+    build: ./transaction_service
     container_name: ds-transaction-service
     ports:
       - "5002:5002"
@@ -34,7 +33,19 @@ services:
       DB_USER: myuser
       DB_PASSWORD: mypassword
       DB_NAME: transactions_db
-      AUTH_SERVICE_URL: http://host.docker.internal:5001 
+      # Use internal Docker DNS name for auth_service
+      AUTH_SERVICE_URL: http://auth_service:5001
+
+  message_queue_service:
+    build: ./message_queue_service
+    container_name: ds-queue-service
+    ports:
+      - "7500:7500"
+    depends_on:
+      - auth_service
+    environment:
+      # Point at the auth_service by its service name
+      AUTH_SERVICE_URL: http://auth_service:5001
 
 volumes:
   db_data:
