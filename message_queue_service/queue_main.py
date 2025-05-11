@@ -2,6 +2,7 @@ import threading
 import time
 import yaml
 import requests
+import os
 from flask import Flask, request, jsonify
 from functools import wraps
 from queue_manager import QueueManager
@@ -35,7 +36,8 @@ def _persistence_loop():
         except Exception as e:
             app.logger.warning(f"Failed to persist queue state: {e}")
 
-threading.Thread(target=_persistence_loop, daemon=True).start()
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    threading.Thread(target=_persistence_loop, daemon=True).start()
 
 # -----------------------------------------------------------------------------
 #  REQUEST/RESPONSE LOGGING (same style as other services)
@@ -124,7 +126,21 @@ def delete_queue(queue_name):
 @role_check(["administrator", "agent"])
 def push_message(queue_name):
     try:
-        message = request.json
+        message = request.json or {}
+        tid = message.get("transaction_id")
+        if not tid:
+            return jsonify({"error": "Missing transaction_id in message"}), 400
+        
+        headers = {"Authorization": request.headers.get("Authorization", "")}
+        ts_url = config["transaction_service_url"]
+        resp  =requests.get(f"{ts_url}/transactions/{tid}", headers=headers)
+        if resp.status_code != 200:
+            return jsonify({"error": "Transaction not found"}), 404
+        
+        existing = qm.queues.get(queue_name, [])
+        if any(msg.get("transaction_id") == tid for msg in existing):
+            return jsonify({"error" : f"Transaction {tid} already in queue"}), 400
+
         qm.push(queue_name, message)
         return jsonify({"message": "Message pushed"}), 200
     except Exception as e:
@@ -144,4 +160,4 @@ def pull_message(queue_name):
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     # Use debug=True for development; remove in production
-    app.run(host="0.0.0.0", port=7500, debug=True)
+    app.run(host="0.0.0.0", port=7500, debug=True, use_reloader=False)

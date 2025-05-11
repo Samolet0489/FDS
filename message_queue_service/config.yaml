@@ -1,3 +1,4 @@
 max_queue_size: 100
 persist_interval_seconds: 60
 auth_service_url: "http://auth_service:5001"
+transaction_service_url: "http://transaction_service:5002"
