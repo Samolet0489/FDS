@@ -1,7 +1,7 @@
 import json
 import os
 
-PERSISTENCE_FILE = "queues.json"
+PERSISTENCE_FILE = os.environ.get("PERSISTENCE_FILE", "queues.json")
 
 def save_state(queues):
     """

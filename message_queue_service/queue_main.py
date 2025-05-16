@@ -36,8 +36,9 @@ def _persistence_loop():
         except Exception as e:
             app.logger.warning(f"Failed to persist queue state: {e}")
 
-if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-    threading.Thread(target=_persistence_loop, daemon=True).start()
+def start_persistence_thread():
+    t = threading.Thread(target=_persistence_loop, daemon=True)
+    t.start()
 
 # -----------------------------------------------------------------------------
 #  REQUEST/RESPONSE LOGGING (same style as other services)
@@ -160,4 +161,5 @@ def pull_message(queue_name):
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     # Use debug=True for development; remove in production
+    start_persistence_thread()
     app.run(host="0.0.0.0", port=7500, debug=True, use_reloader=False)

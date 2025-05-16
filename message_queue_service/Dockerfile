@@ -16,3 +16,7 @@ EXPOSE 7500
 
 # Start the Flask application
 CMD ["python", "queue_main.py"]
+
+# Set environment variables for persistence
+VOLUME ["/app/data"]
+ENV PERSISTENCE_FILE="/app/data/queues.json"
