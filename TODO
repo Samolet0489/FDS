@@ -1,8 +1,58 @@
 
 
 
+mpi_prediction_service:
+
+we are completely lost.
 
 
+we finally got  it to build the container WITH the library (takes about 200 sec)
+
+but then we get this error:
+2025-06-03 14:47:51 Traceback (most recent call last):
+2025-06-03 14:47:51   File "mpi_service.py", line 35, in <module>
+2025-06-03 14:47:51     MQ_TOKEN = get_token()
+2025-06-03 14:47:51   File "mpi_service.py", line 24, in get_token
+2025-06-03 14:47:51     raise RuntimeError("MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set")
+2025-06-03 14:47:51 RuntimeError: MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set
+2025-06-03 14:47:51 Traceback (most recent call last):
+2025-06-03 14:47:51   File "mpi_service.py", line 35, in <module>
+2025-06-03 14:47:51     MQ_TOKEN = get_token()
+2025-06-03 14:47:51   File "mpi_service.py", line 24, in get_token
+2025-06-03 14:47:51     raise RuntimeError("MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set")
+2025-06-03 14:47:51 RuntimeError: MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set
+2025-06-03 14:47:51 Traceback (most recent call last):
+2025-06-03 14:47:51   File "mpi_service.py", line 35, in <module>
+2025-06-03 14:47:51     MQ_TOKEN = get_token()
+2025-06-03 14:47:51   File "mpi_service.py", line 24, in get_token
+2025-06-03 14:47:51     raise RuntimeError("MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set")
+2025-06-03 14:47:51 RuntimeError: MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set
+2025-06-03 14:47:51 Traceback (most recent call last):
+2025-06-03 14:47:51   File "mpi_service.py", line 35, in <module>
+2025-06-03 14:47:51     MQ_TOKEN = get_token()
+2025-06-03 14:47:51   File "mpi_service.py", line 24, in get_token
+2025-06-03 14:47:51     raise RuntimeError("MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set")
+2025-06-03 14:47:51 RuntimeError: MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set
+2025-06-03 14:47:51 Traceback (most recent call last):
+2025-06-03 14:47:51   File "mpi_service.py", line 35, in <module>
+2025-06-03 14:47:51     MQ_TOKEN = get_token()
+2025-06-03 14:47:51   File "mpi_service.py", line 24, in get_token
+2025-06-03 14:47:51     raise RuntimeError("MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set")
+2025-06-03 14:47:51 RuntimeError: MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set
+2025-06-03 14:47:51 --------------------------------------------------------------------------
+2025-06-03 14:47:51 Primary job  terminated normally, but 1 process returned
+2025-06-03 14:47:51 a non-zero exit code. Per user-direction, the job has been aborted.
+2025-06-03 14:47:51 --------------------------------------------------------------------------
+2025-06-03 14:47:53 --------------------------------------------------------------------------
+2025-06-03 14:47:53 mpiexec detected that one or more processes exited with non-zero status, thus causing
+2025-06-03 14:47:53 the job to be terminated. The first process to do so was:
+2025-06-03 14:47:53 
+2025-06-03 14:47:53   Process name: [[57164,1],0]
+2025-06-03 14:47:53   Exit code:    1
+2025-06-03 14:47:53 --------------------------------------------------------------------------
+
+
+At this point we are ok with just hardcoding the stuff in the code to get it workin, fix later if you hate yourself
 
 #to test ( we are using postman now)
 SELECT * FROM results;

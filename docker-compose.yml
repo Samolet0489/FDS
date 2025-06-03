@@ -1,4 +1,4 @@
-version: '3.9'
+version: '3.8'
 
 services:
   db:
@@ -47,5 +47,25 @@ services:
       # Point at the auth_service by its service name
       AUTH_SERVICE_URL: http://auth_service:5001
 
+  mpi_prediction_service:
+    build: ./mpi_prediction_service
+    container_name: ds-mpi-service
+    depends_on:
+      - auth_service
+      - message_queue_service
+    environment:
+      MQ_URL:             http://message_queue_service:7500
+      AUTH_SERVICE_URL:   http://auth_service:5001
+      MQ_USER:            ${MQ_USER}
+      MQ_PASSWORD:        ${MQ_PASSWORD}
+      TRANSACTION_QUEUE:  transactions
+      RESULTS_QUEUE:      results
+      OMPI_ALLOW_RUN_AS_ROOT: "1"
+      OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: "1"
+      
+    command: >
+      bash -lc "mpiexec --allow-run-as-root -n 5 python mpi_service.py"
+    
+    
 volumes:
   db_data:

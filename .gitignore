@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Pre-trained model
+mpi_prediction_service/fraud_rf_model.pkl
+
 # Distribution / packaging
 .Python
 build/
