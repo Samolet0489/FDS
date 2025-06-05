@@ -1,109 +1,152 @@
 #!/usr/bin/env python
+"""
+Parallel fraud-prediction service (MPI + message-queue) with detailed logging.
+"""
 import os
 import time
-import pickle
+import json
+import logging
 import requests
+from joblib import load as jl  
 from mpi4py import MPI
 
-# ─── Configuration ─────────────────────────────────────────────────────────────
-MQ_URL           = os.environ.get("MQ_URL", "http://message_queue_service:7500")
-AUTH_URL         = os.environ.get("AUTH_SERVICE_URL", "http://auth_service:5001")
-MQ_USER          = os.environ.get("MQ_USER")
-MQ_PASSWORD      = os.environ.get("MQ_PASSWORD")
-TRANSACTION_Q    = os.environ.get("TRANSACTION_QUEUE", "transactions")
-RESULTS_Q        = os.environ.get("RESULTS_QUEUE", "results")
-MODEL_PATH       = os.environ.get("MODEL_PATH", "fraud_rf_model.pkl")
 
-# ─── Authentication helper (use our existing auth service) ─────────────────────
-def get_token():
-    """Get MQ token: prefer existing env, otherwise login via auth service"""
-    token = os.environ.get("MQ_TOKEN")
+print("CAR")
+
+# ─── Logging config ───────────────────────────────────────────────────────────
+def configure_logger(rank: int) -> logging.Logger:
+    fmt = f"%(asctime)s [rank {rank}] %(levelname)s: %(message)s"
+    logging.basicConfig(level=logging.INFO, format=fmt, datefmt="%H:%M:%S")
+    return logging.getLogger(f"rank{rank}")
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+MQ_URL     = os.getenv("MQ_URL", "http://message_queue_service:7500")
+AUTH_URL   = os.getenv("AUTH_SERVICE_URL", "http://auth_service:5001")
+MQ_USER    = os.getenv("MQ_USER")
+MQ_PASSWORD= os.getenv("MQ_PASSWORD")
+TX_QUEUE   = os.getenv("TRANSACTION_QUEUE", "transactions")
+RES_QUEUE  = os.getenv("RESULTS_QUEUE", "results")
+MODEL_PATH = os.getenv("MODEL_PATH", "fraud_rf_model.pkl")
+
+# ─── Authentication helper ────────────────────────────────────────────────────
+def fetch_token() -> str:
+    token = os.getenv("MQ_TOKEN")
     if token:
         return token
     if not (MQ_USER and MQ_PASSWORD):
-        raise RuntimeError("MQ_TOKEN or MQ_USER and MQ_PASSWORD must be set")
-
-    # Login to auth service
-    resp = requests.post(
+        raise RuntimeError("Need MQ_TOKEN or MQ_USER/MQ_PASSWORD env vars")
+    r = requests.post(
         f"{AUTH_URL}/auth/login",
-        json={"username": MQ_USER, "password": MQ_PASSWORD}
+        json={"username": MQ_USER, "password": MQ_PASSWORD},
+        timeout=5,
     )
-    resp.raise_for_status()
-    return resp.json().get("token")
+    r.raise_for_status()
+    return r.json()["token"]
 
-# Fetch token and prepare headers
-MQ_TOKEN = get_token()
-headers = {"Authorization": MQ_TOKEN}
+TOKEN   = fetch_token()
+HEADERS = {"Authorization": TOKEN}
 
-# ─── Load the pre-trained RF model ─────────────────────────────────────────────
-with open(MODEL_PATH, "rb") as f:
-    model = pickle.load(f)
+# ─── Load model ───────────────────────────────────────────────────────────────
+def load_model(path: str):
+    return jl(path)   
 
-# ─── MPI setup ───────────────────────────────────────────────────────────────────
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-size = comm.Get_size()
 
-# ─── Message queue helpers ──────────────────────────────────────────────────────
+model = load_model(MODEL_PATH)
+N_FEATURES = getattr(model, "n_features_in_", 2)
 
-def pull_transaction(blocking=True):
-    url = f"{MQ_URL}/queues/{TRANSACTION_Q}/pull"
+# ─── MPI setup ────────────────────────────────────────────────────────────────
+COMM = MPI.COMM_WORLD
+RANK = COMM.Get_rank()
+SIZE = COMM.Get_size()
+LOG  = configure_logger(RANK)
+
+# ─── Queue helpers ────────────────────────────────────────────────────────────
+def pull_one(blocking: bool = True):
+    """Pop a single transaction or return None."""
+    url = f"{MQ_URL}/queues/{TX_QUEUE}/pull"
+    payload = {"max_messages": 1}
     while True:
-        resp = requests.post(url, headers=headers)
+        resp = requests.post(url, json=payload, headers=HEADERS, timeout=5)
         if resp.status_code == 200:
-            return resp.json().get("message")
+            return resp.json()["message"]
         if not blocking:
             return None
-        time.sleep(1)
+        time.sleep(2)
 
+def push_result(msg: dict):
+    url = f"{MQ_URL}/queues/{RES_QUEUE}/push"
+    r = requests.post(url, json=msg, headers=HEADERS, timeout=5)
+    r.raise_for_status()
 
-def push_result(result_msg):
-    url = f"{MQ_URL}/queues/{RESULTS_Q}/push"
-    resp = requests.post(url, json=result_msg, headers=headers)
-    resp.raise_for_status()
+# ─── Master rank ──────────────────────────────────────────────────────────────
+if RANK == 0:
+    LOG.info("MPI service up with %d ranks", SIZE)
 
-# ─── Master logic (rank 0) ───────────────────────────────────────────────────────
-if rank == 0:
-    print(f"[master] Starting MPI service with {size} ranks.")
     while True:
-        # gather up to `size` transactions
+        # 1. Pull at most SIZE messages
         batch = []
-        for i in range(size):
-            tx = pull_transaction(blocking=(i == 0))
+        for i in range(SIZE):
+            tx = pull_one(blocking=(i == 0))
             if tx is None:
                 break
             batch.append(tx)
+
         if not batch:
-            time.sleep(2)
             continue
 
-        # pad and scatter
-        tasks = batch + [None] * (size - len(batch))
-        comm.scatter(tasks, root=0)
+        LOG.info("pulled %d tx: %s",
+                 len(batch),
+                 ", ".join(str(t['transaction_id']) for t in batch))
 
-        # collect predictions
-        preds = comm.gather(None, root=0)
-        for p in preds:
-            if p:
-                push_result(p)
+        # 2. Scatter to workers
+        batch.extend([None] * (SIZE - len(batch)))
+        COMM.scatter(batch, root=0)
+        print("YELLOW")
 
-# ─── Worker logic (ranks >0) ─────────────────────────────────────────────────────
+        # 3. Gather results
+        results = COMM.gather(None, root=0)
+        LOG.debug("gather returned: %s", results)
+
+        # 4. Push valid results
+        pushed = 0
+        for res in results:
+            if res:
+                try:
+                    push_result(res)
+                    pushed += 1
+                except Exception as ex:
+                    LOG.error("push_result failed for tx %s: %s",
+                              res.get("transaction_id"), ex)
+        LOG.info("pushed %d result(s) to '%s'", pushed, RES_QUEUE)
+
+# ─── Worker ranks ─────────────────────────────────────────────────────────────
 else:
     while True:
-        task = comm.scatter(None, root=0)
+        task = COMM.scatter(None, root=0)
         if task is None:
-            comm.gather(None, root=0)
+            COMM.gather(None, root=0)
             continue
 
-        # perform prediction
-        features = [[task.get("amount"), 0]]
-        is_fraud = bool(model.predict(features)[0])
-        confidence = float(max(model.predict_proba(features)[0]))
+        tid = task.get("transaction_id")
+        LOG.info("received tx %s", tid)
 
-        result = {
-            "transaction_id": task.get("transaction_id"),
-            "timestamp": task.get("timestamp"),
-            "is_fraudulent": is_fraud,
-            "confidence": confidence
-        }
-        comm.gather(result, root=0)
+        try:
+            amount = float(task.get("amount", 0.0))
+            X = [amount] + [0.0] * (N_FEATURES - 1)
+            X = [X]
+
+            fraud      = bool(model.predict(X)[0])
+            confidence = float(max(model.predict_proba(X)[0]))
+
+            result = {
+                "transaction_id": tid,
+                "timestamp":      task.get("timestamp"),
+                "is_fraudulent":  fraud,
+                "confidence":     confidence,
+            }
+            COMM.gather(result, root=0)
+            LOG.info("predicted tx %s → fraud=%s conf=%.3f",
+                     tid, fraud, confidence)
+        except Exception as exc:
+            LOG.error("ERROR on tx %s: %s", tid, exc)
+            COMM.gather(None, root=0)

@@ -150,11 +150,23 @@ def push_message(queue_name):
 @app.route("/queues/<queue_name>/pull", methods=["POST"])
 @role_check(["administrator", "agent"])
 def pull_message(queue_name):
-    try:
-        msg = qm.pull(queue_name)
-        return jsonify({"message": msg}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    data = request.get_json(silent=True) or {}
+    block = bool(data.get("block", False))
+    # Optional: support 'timeout' (seconds)
+    timeout = float(data.get("timeout", 30))
+
+    deadline = time.time() + timeout
+    while True:
+        try:
+            msg = qm.pull(queue_name)
+            return jsonify({"message": msg}), 200
+        except Exception as e:
+            if "empty" not in str(e).lower() or not block:
+                return jsonify({"error": str(e)}), 400
+            if time.time() >= deadline:
+                return jsonify({"error": "timeout"}), 408
+            time.sleep(1)
+
 
 # -----------------------------------------------------------------------------
 #  START THE SERVICE

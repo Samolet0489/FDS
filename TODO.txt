@@ -2,6 +2,11 @@
 
 mpi_prediction_service:
 
+LAZY BUILD:
+    docker compose build mpi_prediction_service
+    docker compose up -d mpi_prediction_service
+
+
 we are completely lost.
 
 
@@ -43,6 +48,9 @@ but then we get this error:
 
 CURRENT ISSUE:
     the error.
+
+
+    ok so we pull the transaction successfully but we dont get a result. DONT TOUCH DOCKERS AND such SHIT. 
 
 
 
