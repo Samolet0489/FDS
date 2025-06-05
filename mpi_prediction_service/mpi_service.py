@@ -61,6 +61,7 @@ SIZE = COMM.Get_size()
 LOG  = configure_logger(RANK)
 
 # ─── Queue helpers ────────────────────────────────────────────────────────────
+#REMOVE IF THE new one WORKS
 def pull_one(blocking: bool = True):
     """Pop a single transaction or return None."""
     url = f"{MQ_URL}/queues/{TX_QUEUE}/pull"
@@ -73,6 +74,37 @@ def pull_one(blocking: bool = True):
             return None
         time.sleep(2)
 
+# ─── Queue helpers ────────────────────────────────────────────────────────────
+# ─── Queue helpers ────────────────────────────────────────────────────────────
+def pull_batch(n: int, *, blocking: bool = True) -> list[dict]:
+    """
+    Pull up to *n* transaction messages in one HTTP call.
+
+    Works with queue APIs that return either {"messages":[…]} or {"message":{…}}.
+    """
+    url     = f"{MQ_URL}/queues/{TX_QUEUE}/pull"
+    payload = {"max_messages": n}
+
+    while True:
+        r = requests.post(url, json=payload, headers=HEADERS, timeout=5)
+        if r.status_code == 200:
+            data = r.json()
+            # normalise to a list
+            if "messages" in data:              # batch API
+                msgs = data["messages"]
+            elif "message" in data and data["message"]:
+                msgs = [data["message"]]        # single object
+            else:
+                msgs = []
+
+            if msgs or not blocking:
+                return msgs
+        if not blocking:
+            return []
+        time.sleep(2)           # queue empty → wait and retry
+
+
+
 def push_result(msg: dict):
     url = f"{MQ_URL}/queues/{RES_QUEUE}/push"
     r = requests.post(url, json=msg, headers=HEADERS, timeout=5)
@@ -84,12 +116,15 @@ if RANK == 0:
 
     while True:
         # 1. Pull at most SIZE messages
-        batch = []
-        for i in range(SIZE):
-            tx = pull_one(blocking=(i == 0))
-            if tx is None:
-                break
-            batch.append(tx)
+        # batch = []
+        # for i in range(SIZE):
+        #     tx = pull_one(blocking=(i == 0))
+        #     if tx is None:
+        #         break
+        #     batch.append(tx)
+        
+        # instead of the above we do this so that we can do a BATcH
+        batch = pull_batch(SIZE, blocking=True)
 
         if not batch:
             continue
