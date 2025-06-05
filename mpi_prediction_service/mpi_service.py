@@ -100,11 +100,24 @@ if RANK == 0:
 
         # 2. Scatter to workers
         batch.extend([None] * (SIZE - len(batch)))
-        COMM.scatter(batch, root=0)
+        my_task = COMM.scatter(batch, root=0)
         print("YELLOW")
 
+        # run infrance locally if we got a task
+        def infer(tx):
+            amount = float(tx.get("amount", 0.0))
+            X = [[amount] + [0.0] * (N_FEATURES - 1)]
+            return {
+                "transaction_id": tx["transaction_id"],
+                "timestamp":      tx.get("timestamp"),
+                "is_fraudulent":  bool(model.predict(X)[0]),
+                "confidence":     float(max(model.predict_proba(X)[0])),
+            }
+        
+        my_result = infer(my_task) if my_task else None
+
         # 3. Gather results
-        results = COMM.gather(None, root=0)
+        results = COMM.gather(my_result, root=0)
         LOG.debug("gather returned: %s", results)
 
         # 4. Push valid results
