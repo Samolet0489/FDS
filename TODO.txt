@@ -1,0 +1,56 @@
+
+
+mpi_prediction_service:
+
+we are completely lost.
+
+
+we finally got  it to build the container WITH the library (takes about 200 sec) WORKS ON python 8.0
+
+but then we get this error:
+2025-06-05 10:56:05 Traceback (most recent call last):
+2025-06-05 10:56:05   File "/app/mpi_service.py", line 40, in <module>
+2025-06-05 10:56:05     model = pickle.load(f)
+2025-06-05 10:56:05 _pickle.UnpicklingError: STACK_GLOBAL requires str
+2025-06-05 10:56:05 Traceback (most recent call last):
+2025-06-05 10:56:05   File "/app/mpi_service.py", line 40, in <module>
+2025-06-05 10:56:05     model = pickle.load(f)
+2025-06-05 10:56:05 _pickle.UnpicklingError: STACK_GLOBAL requires str
+2025-06-05 10:56:05 Traceback (most recent call last):
+2025-06-05 10:56:05   File "/app/mpi_service.py", line 40, in <module>
+2025-06-05 10:56:05     model = pickle.load(f)
+2025-06-05 10:56:05 _pickle.UnpicklingError: STACK_GLOBAL requires str
+2025-06-05 10:56:05 Traceback (most recent call last):
+2025-06-05 10:56:05   File "/app/mpi_service.py", line 40, in <module>
+2025-06-05 10:56:05     model = pickle.load(f)
+2025-06-05 10:56:05 _pickle.UnpicklingError: STACK_GLOBAL requires str
+2025-06-05 10:56:05 Traceback (most recent call last):
+2025-06-05 10:56:05   File "/app/mpi_service.py", line 40, in <module>
+2025-06-05 10:56:05     model = pickle.load(f)
+2025-06-05 10:56:05 _pickle.UnpicklingError: STACK_GLOBAL requires str
+2025-06-05 10:56:05 --------------------------------------------------------------------------
+2025-06-05 10:56:05 Primary job  terminated normally, but 1 process returned
+2025-06-05 10:56:05 a non-zero exit code. Per user-direction, the job has been aborted.
+2025-06-05 10:56:05 --------------------------------------------------------------------------
+2025-06-05 10:56:07 --------------------------------------------------------------------------
+2025-06-05 10:56:07 mpiexec detected that one or more processes exited with non-zero status, thus causing
+2025-06-05 10:56:07 the job to be terminated. The first process to do so was:
+2025-06-05 10:56:07 
+2025-06-05 10:56:07   Process name: [[63922,1],0]
+2025-06-05 10:56:07   Exit code:    1
+2025-06-05 10:56:07 --------------------------------------------------------------------------
+
+
+CURRENT ISSUE:
+    the error.
+
+
+
+
+#to test ( we are using postman now)
+SELECT * FROM results;
+
+
+LOOK FOR " # comment me "and comment then
+
+ requirements from root needed? (remove them plz)

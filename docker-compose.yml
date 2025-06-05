@@ -56,8 +56,8 @@ services:
     environment:
       MQ_URL:             http://message_queue_service:7500
       AUTH_SERVICE_URL:   http://auth_service:5001
-      MQ_USER:            ${MQ_USER}
-      MQ_PASSWORD:        ${MQ_PASSWORD}
+      MQ_USER:            agent
+      MQ_PASSWORD:        agentpass
       TRANSACTION_QUEUE:  transactions
       RESULTS_QUEUE:      results
       OMPI_ALLOW_RUN_AS_ROOT: "1"
