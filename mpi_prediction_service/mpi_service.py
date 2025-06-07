@@ -5,16 +5,15 @@ import os, time, json, logging, requests
 from joblib import load as jl  
 from mpi4py import MPI
 
+print("Worker started.")
 
-print("CAR")
-
-# ─── Logging config ───────────────────────────────────────────────────────────
+# === Logging config ===========================================================
 def configure_logger(rank: int) -> logging.Logger:
     fmt = f"%(asctime)s [rank {rank}] %(levelname)s: %(message)s"
     logging.basicConfig(level=logging.INFO, format=fmt, datefmt="%H:%M:%S")
     return logging.getLogger(f"rank{rank}")
 
-# ─── Configuration ────────────────────────────────────────────────────────────
+# === Configuration ===========================================================
 MQ_URL     = os.getenv("MQ_URL", "http://message_queue_service:7500")
 AUTH_URL   = os.getenv("AUTH_SERVICE_URL", "http://auth_service:5001")
 MQ_USER    = os.getenv("MQ_USER")
@@ -23,7 +22,7 @@ TX_QUEUE   = os.getenv("TRANSACTION_QUEUE", "transactions")
 RES_QUEUE  = os.getenv("RESULTS_QUEUE", "results")
 MODEL_PATH = os.getenv("MODEL_PATH", "fraud_rf_model.pkl")
 
-# ─── Authentication helper ────────────────────────────────────────────────────
+# === Authentication helper ===========================================================
 def fetch_token() -> str:
     token = os.getenv("MQ_TOKEN")
     if token:
@@ -41,7 +40,7 @@ def fetch_token() -> str:
 TOKEN   = fetch_token()
 HEADERS = {"Authorization": TOKEN}
 
-# ─── Load model ───────────────────────────────────────────────────────────────
+# === Load model ===========================================================
 def load_model(path: str):
     return jl(path)   
 
@@ -49,19 +48,19 @@ def load_model(path: str):
 model = load_model(MODEL_PATH)
 N_FEATURES = getattr(model, "n_features_in_", 2)
 
-# ─── MPI setup ────────────────────────────────────────────────────────────────
+# === MPI setup ===========================================================
 COMM = MPI.COMM_WORLD
 RANK = COMM.Get_rank()
 SIZE = COMM.Get_size()
 LOG  = configure_logger(RANK)
 
-# ─── Queue helpers ────────────────────────────────────────────────────────────
+# === Queue helpers ===========================================================
 def pull_batch(n: int, *, blocking: bool = True) -> list[dict]:
     """
-    Pull up to *n* transaction messages in one HTTP call.
+    Pull up to n transaction messages in one HTTP call.
     Works with queue APIs that return either {"messages":[…]} or {"message":{…}}.
     """
-    url     = f"{MQ_URL}/queues/{TX_QUEUE}/pull"
+    url = f"{MQ_URL}/queues/{TX_QUEUE}/pull"
     payload = {"max_messages": n}
 
     while True:
@@ -69,10 +68,10 @@ def pull_batch(n: int, *, blocking: bool = True) -> list[dict]:
         if r.status_code == 200:
             data = r.json()
             # normalise to a list
-            if "messages" in data:              # batch API
+            if "messages" in data:
                 msgs = data["messages"]
             elif "message" in data and data["message"]:
-                msgs = [data["message"]]        # single object
+                msgs = [data["message"]]
             else:
                 msgs = []
 
@@ -80,7 +79,7 @@ def pull_batch(n: int, *, blocking: bool = True) -> list[dict]:
                 return msgs
         if not blocking:
             return []
-        time.sleep(2)           # queue empty → wait and retry
+        time.sleep(2)           # queue empty -> wait and retry
 
 
 
@@ -89,7 +88,7 @@ def push_result(msg: dict):
     r = requests.post(url, json=msg, headers=HEADERS, timeout=5)
     r.raise_for_status()
 
-# ─── Master rank ──────────────────────────────────────────────────────────────
+# === Master rank ===========================================================
 if RANK == 0:
     LOG.info("MPI service up with %d ranks", SIZE)
 
@@ -104,7 +103,7 @@ if RANK == 0:
                  len(batch),
                  ", ".join(str(t['transaction_id']) for t in batch))
 
-        # 2. Scatter to workers
+        # Scatter to workers
         batch.extend([None] * (SIZE - len(batch)))
         my_task = COMM.scatter(batch, root=0)
         print("YELLOW")
@@ -122,12 +121,12 @@ if RANK == 0:
         
         my_result = infer(my_task) if my_task else None
 
-        # 3. Gather results
+        # Gather results
         results = COMM.gather(my_result, root=0)
         LOG.debug("gather returned: %s", results)
 
         pushed = 0
-        for res in results:             # back to the previous code
+        for res in results:
             if res:
                 try:
                     push_result(res)
@@ -137,7 +136,7 @@ if RANK == 0:
                             res.get("transaction_id"), ex)
         LOG.info("pushed %d result(s) to '%s'", pushed, RES_QUEUE)
 
-# ─── Worker ranks ─────────────────────────────────────────────────────────────
+# === Worker ranks ===========================================================
 else:
     while True:
         task = COMM.scatter(None, root=0)
